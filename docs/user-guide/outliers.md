@@ -91,6 +91,32 @@ Note that in order to be complaint to the scikit-learn API we require that the `
 
 ![regr-outlier](../_static/outliers/regr-outlier.png)
 
+The `column` parameter refers to the target column. When `X` is a dataframe it is the column _name_ (for example `column="y"`), and that column is never passed to the regression model as a feature. When `X` is an array it is the positional index of the target column. A `Pipeline` that ends in a regressor works as the `model`.
+
+By default `score_samples` and `decision_function` return the signed residual, so the two tails receive scores with opposite signs. Pass `margin=True` (for `method="sd"` and `method="absolute"`) to score the smallest signed distance to the lower and upper thresholds instead. That score is non-negative inside the band (boundaries included) and negative outside of it, which makes both tails consistently low. The hard `predict` labels are always decided by the detector. An `OutlierClassifier` wrapping such a detector uses the same scores for its probability calibration, which is what makes both tails detectable:
+
+```py
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+
+from sklego.meta import OutlierClassifier, RegressionOutlierDetector
+
+np.random.seed(0)
+x = np.random.normal(0, 1, 200)
+value = 1 + x + np.random.normal(0, 0.15, 200)
+value[[5, 6]] += [-8, 8]  # one negative and one positive deviation
+frame = pd.DataFrame({"x": x, "value": value})
+
+detector = RegressionOutlierDetector(LinearRegression(), column="value", margin=True)
+classifier = OutlierClassifier(detector).fit(frame, np.isin(np.arange(len(frame)), [5, 6]).astype(int))
+
+print(classifier.predict(frame)[[5, 6]])
+### [1 1]
+print(classifier.predict_proba(frame)[[5, 6], 1])
+### [0.764... 0.735...]
+```
+
 [pca-outlier-api]: ../../api/decomposition#sklego.decomposition.pca_reconstruction.PCAOutlierDetection
 [umap-outlier-api]: ../../api/decomposition#sklego.decomposition.umap_reconstruction.UMAPOutlierDetection.md
 [gmm-outlier-api]: ../../api/mixture#sklego.mixture.gmm_outlier_detector.GMMOutlierDetector
